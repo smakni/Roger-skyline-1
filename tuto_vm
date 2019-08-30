@@ -1,0 +1,37 @@
+debian-10.0.0-amd64-netinst.iso
+Default everything
+- No Desktop Environnment
+
+=== Setup Sudo
+
+Install sudo (going through su) and add user to sudo group
+`su apt-get install sudo
+adduser smakni sudo`
+
+=== Network setup:ß
+
+Pour l'host, choisir Bridged adapter
+Pour la config du guest en ip statique, il faut choisir une ip similaire aux postes réels des clusters en 10.11.x.x
+Editer le fichier /etc/network/interfaces
+`auto enp0s3
+iface enp0s3 inet static
+    address 10.11.x.x/30
+    gateway 10.11.254.254`
+La gateway doit être la gateway réelle des clusters, il faut la récupérer sur un poste et la copier dans l'hote (10.11.254.254)
+Normalement avec ca, on a une connexion internet sur la VM ainsi qu'entre l'host et VM (pour ssh)
+
+=== Pour la config SSH il faut :
+
+Creer une clef avec ssh-keygen et l'envoyer a l'host avec ssh-copy-id
+`ssh-keygen -f ~/.ssh/roger
+ssh-copy-id -i ~/.ssh/roger smakni@10.11.x.x`
+Puis changer le Port par defaut, forcer l'auth avec publickey, et desactivez l'acces SSH a root:
+/etc/ssh/sshd_config
+`Port 2222
+AuthenticationMethods publickey
+PermitRootLogin no`
+Connexion avec
+`ssh -i ~/.ssh/roger smakni@10.11.x.x -p 2222`
+
+=== Firewall rules
+
