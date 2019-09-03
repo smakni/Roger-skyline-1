@@ -2,13 +2,26 @@ debian-10.0.0-amd64-netinst.iso
 Default everything
 - No Desktop Environnment
 
-=== Setup Sudo
+su
+apt-get install vim
+
+=== Increase consol resolution ===
+
+add: 	'GRUB_CMDLINE_LINUX_DEFAULT="nomodeset"'
+		'GRUB_GFXPAYLOAD_LINUX=1024x768'
+
+to '/etc/default/grub'
+
+sudo update-grub
+sudo reboot
+
+=== SETUP SUDO ===
 
 Install sudo (going through su) and add user to sudo group
 `su apt-get install sudo
 adduser smakni sudo`
 
-=== Network setup:ß
+=== NETWORK SETUP ===
 
 Pour l'host, choisir Bridged adapter
 Pour la config du guest en ip statique, il faut choisir une ip similaire aux postes réels des clusters en 10.11.x.x
@@ -20,18 +33,146 @@ iface enp0s3 inet static
 La gateway doit être la gateway réelle des clusters, il faut la récupérer sur un poste et la copier dans l'hote (10.11.254.254)
 Normalement avec ca, on a une connexion internet sur la VM ainsi qu'entre l'host et VM (pour ssh)
 
-=== Pour la config SSH il faut :
+=== CONFIG SSH ===
 
 Creer une clef avec ssh-keygen et l'envoyer a l'host avec ssh-copy-id
 `ssh-keygen -f ~/.ssh/roger
 ssh-copy-id -i ~/.ssh/roger smakni@10.11.x.x`
 Puis changer le Port par defaut, forcer l'auth avec publickey, et desactivez l'acces SSH a root:
 /etc/ssh/sshd_config
-`Port 2222
+`Port 222
 AuthenticationMethods publickey
 PermitRootLogin no`
+
+restart ssh 
+
 Connexion avec
-`ssh -i ~/.ssh/roger smakni@10.11.x.x -p 2222`
+`ssh -i ~/.ssh/roger smakni@10.11.x.x -p 222`
 
-=== Firewall rules
+=== FIREWALL RULES ===
 
+>>>>>ufw<<<<<<
+
+sudo apt-get install ufw
+
+change ssh port in ufw config:
+sudo vim /etc/ufw/applications.d/openssh-server > port = 2222
+
+sudo ufw app update OpenSSH
+
+Creer scrypt config_ufw.sh:
+#########################
+#!/bin/bash
+
+sudo ufw enable
+
+#Default set up
+
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+
+#DOS protection for ssh
+
+sudo ufw limit OpenSSH
+########################
+
+monitoring live log:
+sudo tail -f /var/log/ufw.log
+
+>>>>fail2ban<<<<<
+
+sudo apt-get install fail2ban
+	
+check status:
+sudo fail2ban-client status sshd
+
+Creer jail.local:
+sudo vim /etc/fail2ban/jail.local
+#####################
+[sshd]
+port = 222
+enabled = true
+maxretry = 5
+bantime = 60
+mode = aggressive
+######################
+
+monitoring live log:
+sudo tail -f /var/log/fail2ban.log
+
+=== SCANN Port ===
+---------------------
+=== Port scan protection
+
+On utilise un filtre custom fail2ban
+
+Create `/etc/fail2ban/filter.d/ufw-port-scan.conf`
+
+`[Definition]
+failregex = .*\[UFW BLOCK\] IN=.* SRC=<HOST>
+ignoreregex =`
+
+Add to `/etc/fail2ban/jail.local`
+
+`[ufw-port-scan]
+enabled = true
+port = all
+filter = ufw-port-scan
+banaction = ufw
+logpath = /var/log/ufw.log
+maxretry = 10`
+
+Puis restart  fail2ban
+---------------
+
+list ports:
+sudo ss -lntup
+
+sudo apt-get install portsentry
+
+edit /etc/default/portsentry
+TCP_MODE="atcp" (mode avancé)
+UDP_MODE="audp"
+
+edit /etc/portsentry/portsentry.conf
+BLOCK_UDP="1"
+BLOCK_TCP="1"
+
+##################
+# Ignore Options #
+##################
+# 0 = Do not block UDP/TCP scans.
+# 1 = Block UDP/TCP scans.
+# 2 = Run external command only (KILL_RUN_CMD)
+
+comment all KILL_ROUT execpt KILL_ROUTE(iptables)
+
+
+ban in /etc/hosts.deny
+monitoring: sudo tail -f /var/log/syslog.log
+test: nmap -p100-200 10.11.102.33
+
+=== STOP USELESS SERVICES
+
+list enabled services:
+sudo systemctl list-unit-files | grep enabled
+
+sudo systemctl disable XXX
+>>
+apt-daily-upgrade.timer
+apt-daily.timer
+
+=== UPDATE_SCRIPT
+
+vim update.sh:
+############
+#!/bin/bash
+
+sudo apt-get update -y >> /var/log/upd.log
+sudo apt-get upgrade -y >> /var/log/upd.log
+
+exit 0
+############
+chmod 777 update.sh
+
+add to crontab: sudo vim /etc/crontab

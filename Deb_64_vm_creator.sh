@@ -8,6 +8,8 @@ VBoxManage createvm --name $name -ostype Debian_64 --register
 
 VBoxManage modifyvm $name --memory 1024
 
+VBoxManage modifyvm $name --nic1 bridged --bridgeadapter1 en0
+
 VBoxManage createhd --filename ~/goinfre/$name.vdi --sizebyte 8000000000 --format VDI
 
 VBoxManage storagectl $name --name "SATA Controller" --add sata --controller IntelAhci
